@@ -9,7 +9,7 @@
 
 using namespace std;
 
-void find_env_value(string &key, string &value)
+void find_env_value(string key, string &value)
 {
     ifstream file = ifstream(".env");
 
@@ -33,19 +33,30 @@ void find_env_value(string &key, string &value)
     }
 }
 
-string create_signature(string &string_to_sign, string &api_secret)
+string create_signature(string &string_to_sign)
 {
-    return string_to_sign;
+    string api_secret;
+    find_env_value("API_SECRET", api_secret);
+
+    unsigned char *digest;
+
+    digest = HMAC(EVP_sha1(), api_secret.c_str(), api_secret.length(), (unsigned char*)string_to_sign.c_str(), string_to_sign.length(), NULL, NULL);
+    
+    ostringstream result;
+
+    for (int i = 0; i < 20; i++)
+    {
+        result << hex << setw(2) << setfill('0') << (int)digest[i];
+    }
+
+    return result.str();
+
 }
 
 int main()
 {
-    string key = "CLOUDINARY_API_KEY";
-    string value;
-
-    find_env_value(key, value);
-
-    cout << value << endl;
+    string s = "helloo";
+    cout << create_signature(s) << endl;
 
     return 0;
 

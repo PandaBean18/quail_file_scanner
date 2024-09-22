@@ -1,0 +1,3 @@
+1. figure out sending requests to cloudinary api with c++
+2. figure out sending images at specific src to  cloudinary.
+

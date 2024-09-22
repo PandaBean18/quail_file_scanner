@@ -1,0 +1,14 @@
+!DOCTYPE html
+<html>
+    <head>
+    </head>
+    <body>
+    <imgTag>
+	<img id="test"></img>
+    <a><img src = "hello.jpg" id = "test"/></a>
+    <div><p>Hello</p></div><div><img id = "test"/></div>
+
+    <img id= "test1" src = "hello.png"/>
+    </body>
+</html>
+    

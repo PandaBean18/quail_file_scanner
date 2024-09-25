@@ -11,4 +11,3 @@
     <img id= "test1" src = "hello.png"/>
     </body>
 </html>
-    

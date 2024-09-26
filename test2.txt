@@ -1,2 +1,1 @@
-<img src = "hello" id= "test"/>
-
+<img src = "https://res.cloudinary.com/demoImage.jpg" id= "test"/>

@@ -4,9 +4,9 @@
     </head>
     <body>
     <imgTag>
-	<img id="test" src = "https://res.cloudinary.com/demoImage.jpg"></img>
-    <a><img src = "https://res.cloudinary.com/demoImage.jpg" id = "test"/></a>
-    <div><p>Hello</p></div><div><img id = "test" src = "https://res.cloudinary.com/demoImage.jpg"/></div>
+	<img id="test" src = "https://res.cloudinary.com/dopflwqoq/image/upload/v1727527749/apltswafpudms2y84nze.png"></img>
+    <a><img src = "https://res.cloudinary.com/dopflwqoq/image/upload/v1727527752/hcmupyskxwn9mjdvu2vp.png" id = "test"/></a>
+    <div><p>Hello</p></div><div><img id = "test" src = "https://res.cloudinary.com/dopflwqoq/image/upload/v1727527755/fyweqeowcofi4bxln3zc.png"/></div>
 
     <img id= "test1" src = "hello.png"/>
     </body>

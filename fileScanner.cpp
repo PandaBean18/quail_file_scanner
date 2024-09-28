@@ -2,6 +2,13 @@
 #include <filesystem>
 #include <fstream>
 #include <regex>
+#include <curl/curl.h>
+#include <sstream>
+#include <openssl/sha.h>
+#include <openssl/hmac.h>
+#include <iomanip>
+#include <ctime>
+#include <cstring>
 
 using namespace std;
 using namespace std::filesystem;
@@ -39,20 +46,36 @@ void findImgId(string line, string *emptyId)
 
 }
 
-int replaceImgSrc(string line, string newSrc, string &newLine)
+int findImgSrc(string line, string &src)
 {
-	regex pattern(R"(<img\b[^>]*\bsrc\s*=\s*['"]([^'"]+)['"])");
+    regex pattern(R"(<img\b[^>]*\bsrc\s*=\s*['"]([^'"]+)['"])");
 
 	smatch match;
 
-	if(regex_search(line, match, pattern)) {
-		regex replacementPattern(match[1].str());
+    if (regex_search(line, match, pattern))
+    {
+        string s = match[1].str();
 
-		string newString = regex_replace(line, replacementPattern, newSrc);
-		for(string::iterator it = newString.begin(); it != newString.end(); it++)
-			newLine.push_back(*it);
-	}
-	return match.position();	
+        for (string::iterator it = s.begin(); it != s.end(); it++)
+        {
+            src.push_back(*it);
+        }
+
+        return match.position();
+    }
+
+    return 0;
+}
+
+void replaceImgSrc(string line, string src, string newSrc, string &newLine)
+{
+
+    regex replacementPattern(src);
+
+    string newString = regex_replace(line, replacementPattern, newSrc);
+    for(string::iterator it = newString.begin(); it != newString.end(); it++)
+        newLine.push_back(*it);
+	
 }
 
 // create a fucntion that takes an open file, the current line data, and the new line data as inputs 
@@ -134,6 +157,141 @@ void makeSpace(const char *filename, string currentLine, string newLine)
     return ;
 }
 
+void find_env_value(string key, string &value)
+{
+    ifstream file = ifstream(".env");
+
+    string line;
+
+    while(getline(file, line))
+    {
+        if (line.empty() || line[0] == '#') continue;
+        size_t pos = line.find('=');
+
+        if (pos == string::npos) continue;
+        
+        string k = line.substr(0, pos);
+        
+        if (key == k)
+        {
+            value = line.substr(pos+1);
+            
+            return;
+        }
+    }
+}
+
+void find_secure_url(string jsonResponse, string &secureUrl)
+{
+    regex pattern = regex(R"(secure_url"\s*:\s*"([^"]+))");
+    smatch match;
+
+    if (regex_search(jsonResponse, match, pattern))
+    {
+        string url = match[1].str();
+
+        for(string::iterator it = url.begin(); it != url.end(); it++)
+        {
+            secureUrl.push_back(*it);
+        }
+        return;
+    }
+}
+
+string find_hash(string input)
+{
+    unsigned char hash[SHA_DIGEST_LENGTH];
+
+    SHA1(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
+
+    std::ostringstream hexStream;
+    for (int i = 0; i < SHA_DIGEST_LENGTH; ++i) {
+        hexStream << hex << setw(2) << setfill('0') << static_cast<int>(hash[i]);
+    }
+
+    return hexStream.str(); 
+}
+
+size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
+    size_t totalSize = size * nmemb;
+    userp->append((char*)contents, totalSize);
+    return totalSize;
+}
+
+void uploadImage(const char *path, string &secureUrl)
+{
+    string api_key;
+    string api_secret;
+    string cloud_name;
+
+    cout << "Uploading " << path << "..." << endl;
+
+    find_env_value("CLOUDINARY_API_KEY", api_key);
+    find_env_value("CLOUDINARY_API_SECRET", api_secret);
+    find_env_value("CLOUDINARY_CLOUD_NAME", cloud_name);
+
+    time_t timestamp = time(0);
+    ostringstream string_to_sign;
+    string_to_sign << "timestamp=" << timestamp << api_secret;
+
+    string signature = find_hash(string_to_sign.str());
+
+    CURL *curl = curl_easy_init();
+    CURLcode res;
+
+    if (curl)
+    {
+        string url = "https://api.cloudinary.com/v1_1/" + cloud_name + "/image/upload";
+
+        struct curl_httppost *form = NULL;
+        struct curl_httppost *lastptr = NULL;
+        string jsonResponse;
+
+        curl_formadd(&form, &lastptr,
+                     CURLFORM_COPYNAME, "file",
+                     CURLFORM_FILE, path,
+                     CURLFORM_END);
+        
+        curl_formadd(&form, &lastptr,
+                     CURLFORM_COPYNAME, "api_key",
+                     CURLFORM_COPYCONTENTS, api_key.c_str(),
+                     CURLFORM_END);
+
+        curl_formadd(&form, &lastptr,
+                     CURLFORM_COPYNAME, "timestamp",
+                     CURLFORM_COPYCONTENTS, to_string(timestamp).c_str(),
+                     CURLFORM_END);
+
+        curl_formadd(&form, &lastptr,
+                     CURLFORM_COPYNAME, "signature",
+                     CURLFORM_COPYCONTENTS, signature.c_str(),
+                     CURLFORM_END);
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPPOST, form);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &jsonResponse);
+
+        res = curl_easy_perform(curl);
+        
+        if (res != CURLE_OK) {
+            cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+        } else {
+            find_secure_url(jsonResponse, secureUrl);
+
+            cout << endl << endl << "Secure url: " << secureUrl << endl;
+            cout << "Image uploaded successfully!" << endl;
+        }
+
+        curl_easy_cleanup(curl);
+        curl_formfree(form);
+        cout << "Uploaded!";
+    } else {
+        cout << "Something went wrong." << endl;
+    }
+    return;
+}
+
 int main()
 {
     directory_iterator d = directory_iterator(current_path());
@@ -166,9 +324,14 @@ int main()
                     cout << "Found image with id test" << endl;
                     file.close();
                     string newLine;
-                    string replacement = "https://res.cloudinary.com/demoImage.jpg";
+                    string src;
+                    string secureUrl;
                     
-		    	    int shift  = replaceImgSrc(line, replacement, newLine);
+                    int shift = findImgSrc(line, src);
+
+                    uploadImage(src.c_str(), secureUrl);
+
+		    	    replaceImgSrc(line, src, secureUrl, newLine);
 
                     int shiftWidth = newLine.size() - line.size();
 
